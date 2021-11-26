@@ -1,9 +1,11 @@
 import requests
 from bs4 import BeautifulSoup
 
+from data import constants
+
 
 def calculate_currency_amount(currency_name: str, money: float):
-    page = requests.get("https://bank.gov.ua/ua/markets/exchangerates")
+    page = requests.get(constants.NATIONAL_BANK_URL)
     soup = BeautifulSoup(page.content, "html.parser")
 
     table_rows = soup.select("table#exchangeRates tbody tr")
