@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import pytz
 
-from data import constants
+from data import constants, supported_currencies
 
 
 def calculate_currency_amount(target_currency_code: str, money: float):
@@ -59,14 +59,16 @@ def get_data():
 
             for table_row in table_rows:
                 currency_code = table_row.contents[3].text
-                currency_amount = table_row.contents[5].text
-                exchange_rate = table_row.contents[9].text
-                exchange_rate = exchange_rate.replace(',', '.')
 
-                file.write(currency_code + constants.SEPARATOR
-                           + currency_amount + constants.SEPARATOR
-                           + exchange_rate + '\n')
-                data_to_return.append([currency_code, int(currency_amount), float(exchange_rate)])
+                if currency_code in supported_currencies.supported_currencies.values():
+                    currency_amount = table_row.contents[5].text
+                    exchange_rate = table_row.contents[9].text
+                    exchange_rate = exchange_rate.replace(',', '.')
+
+                    file.write(currency_code + constants.SEPARATOR
+                               + currency_amount + constants.SEPARATOR
+                               + exchange_rate + '\n')
+                    data_to_return.append([currency_code, int(currency_amount), float(exchange_rate)])
 
     file.close()
     return data_to_return
