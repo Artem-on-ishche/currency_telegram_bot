@@ -6,13 +6,16 @@ import pytz
 from data import constants, supported_currencies
 
 
-def calculate_currency_amount(target_currency_code: str, money: float):
+def calculate_currency_amount(target_currency_code: str, money: float, conversion_type: int):
     data = get_data()
 
     for currency_info in data:
         currency_code, currency_amount, exchange_rate = currency_info
         if currency_code == target_currency_code:
-            return money / exchange_rate * currency_amount
+            if conversion_type == 0:
+                return money / exchange_rate * currency_amount
+            else:
+                return money * exchange_rate / currency_amount
 
 
 def get_data():
