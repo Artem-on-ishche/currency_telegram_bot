@@ -1,0 +1,228 @@
+Index: src/bot/bot.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>from telegram import *\r\nfrom telegram.ext import *\r\n\r\nfrom data import constants, supported_currencies, available_keyboards\r\nfrom scraper import scraper\r\nfrom bot import helper\r\n\r\nchosen_currency = None\r\nconversion_type = -1  # -1 for no conversion, 0 for uah-currency, 1 for currency-uah\r\n\r\n\r\ndef start_command(update: Updater, context: CallbackContext):\r\n    text = 'Привіт, ' + update.effective_chat.username + '!\\n\\n'\r\n    text += '''     Цей бот може конвертувати гривні в іноземні валюти.\r\n    Для цього він викоритсовує дані з сайту НБУ: https://bank.gov.ua/ua/markets/exchangerates\r\n\r\n    Доступні команди:\r\n        /start - запуск бота\r\n        /help - коротка інформація\r\n\r\n    Решта взаємодії відбувається через кнопки.\r\n\r\n    Приємного користування!'''\r\n    helper.send_message(text, 0, update, context)\r\n\r\n\r\ndef help_command(update: Updater, context: CallbackContext):\r\n    text = '''Цей бот може конвертувати гривні в іноземні валюти.\r\n    Для цього він викоритсовує дані з сайту НБУ: https://bank.gov.ua/ua/markets/exchangerates\r\n\r\n    Доступні команди:\r\n        /start - запуск бота\r\n        /help - коротка інформація\r\n\r\n    Решта взаємодії відбувається через кнопки:\r\n        -> \"Доступні валюти\" - показує список валют, в які бот вміє переводити гроші\r\n        -> \"Гривня -> Валюта\" - конвертує введене значення у гривнях у вказану валюту\r\n        -> \"Валюта -> Гривня\" - конвертує введене значення у вказаній валюті в гривню\r\n        \r\n    Ці самі команди можна вводити як текст замість того, щоб натискати на кнопки.\r\n    \r\n    Коли бот просить ввести суму грошей, потрібно ввести лише число\r\n    \r\n    На решту тексту бот реагує виведенням повідомлення про те, що він не знає такої команди.\r\n\r\n    Приємного користування!'''\r\n    helper.send_message(text, 0, update, context)\r\n\r\n\r\ndef currencies_command(update: Updater, context: CallbackContext):\r\n    text = \"Цей бот працює з такими валютами:\\n\\n\"\r\n    for currency_name in supported_currencies.supported_currencies.keys():\r\n        text += supported_currencies.supported_currencies[currency_name] + ' - ' + currency_name + '\\n'\r\n\r\n    helper.send_message(text, 0, update, context)\r\n\r\n\r\ndef convert_hryvnia_command(update: Updater, context: CallbackContext):\r\n    text = 'Виберіть в яку валюту Ви хочете конвертувати:'\r\n    helper.send_message(text, 1, update, context)\r\n\r\n\r\ndef convert_currency_command(update: Updater, context: CallbackContext):\r\n    text = 'Виберіть з якої валюти Ви хочете конвертувати:'\r\n    helper.send_message(text, 1, update, context)\r\n\r\n\r\ndef message_handler(update: Updater, context: CallbackContext):\r\n    global chosen_currency, conversion_type\r\n    message_text = update.message.text\r\n\r\n    if message_text == \"Доступні валюти\":\r\n        conversion_type = -1\r\n        currencies_command(update, context)\r\n        return\r\n\r\n    if message_text == \"Гривня -> Валюта\":\r\n        conversion_type = 0\r\n        convert_hryvnia_command(update, context)\r\n        return\r\n\r\n    if message_text == \"Валюта -> Гривня\":\r\n        conversion_type = 1\r\n        convert_currency_command(update, context)\r\n        return\r\n\r\n    if conversion_type != -1 and message_text in supported_currencies.supported_currencies.keys():\r\n        chosen_currency = message_text\r\n\r\n        if conversion_type == 0:\r\n            text = \"Введіть скільки гривень Ви хочете конвертувати:\"\r\n        else:\r\n            text = \"Введіть яку суму валюти Ви хочете конвертувати:\"\r\n\r\n        helper.send_message(text, 1, update, context)\r\n        return\r\n\r\n    message_text = message_text.replace(',', '.')\r\n    message_text = message_text.strip()\r\n\r\n    if conversion_type != -1 and chosen_currency is not None and helper.is_float(message_text):\r\n        currency_code = supported_currencies.supported_currencies[chosen_currency]\r\n\r\n        if conversion_type == 0:\r\n            money_in_hryvnia = float(message_text)\r\n            money_in_currency = round(scraper.calculate_currency_amount(currency_code, money_in_hryvnia, 0), 2)\r\n\r\n            text = \"{:.2f} гривень - це {:.2f} {}\".format(money_in_hryvnia, money_in_currency, currency_code)\r\n        else:\r\n            money_in_currency = float(message_text)\r\n            money_in_hryvnia = round(scraper.calculate_currency_amount(currency_code, money_in_currency, 1), 2)\r\n\r\n            text = \"{:.2f} {} - це {:.2f} гривень\".format(money_in_currency, currency_code, money_in_hryvnia)\r\n\r\n        helper.send_message(text, 0, update, context)\r\n\r\n        chosen_currency = None\r\n        conversion_type = -1\r\n        return\r\n\r\n    conversion_type = -1\r\n    text = \"Введений текст не є командою. Будь ласка, повторіть спробу.\"\r\n    helper.send_message(text, 0, update, context)\r\n\r\n\r\ndef main():\r\n    updater = Updater(constants.UNIQUE_TOKEN, use_context=True)\r\n\r\n    dp = updater.dispatcher\r\n\r\n    dp.add_handler(CommandHandler(\"start\", start_command))\r\n    dp.add_handler(CommandHandler(\"help\", help_command))\r\n\r\n    dp.add_handler(MessageHandler(Filters.text, message_handler))\r\n\r\n    updater.start_polling()\r\n\r\n    updater.idle()\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/bot/bot.py	(revision 8e6eefe6dbac7f52143d30870682f99bde5bf552)
++++ src/bot/bot.py	(date 1638088642557)
+@@ -1,9 +1,8 @@
+-from telegram import *
+ from telegram.ext import *
+ 
+-from data import constants, supported_currencies, available_keyboards
+-from scraper import scraper
+ from bot import helper
++from data import constants, supported_currencies, supported_commands
++from scraper import scraper
+ 
+ chosen_currency = None
+ conversion_type = -1  # -1 for no conversion, 0 for uah-currency, 1 for currency-uah
+@@ -69,17 +68,17 @@
+     global chosen_currency, conversion_type
+     message_text = update.message.text
+ 
+-    if message_text == "Доступні валюти":
++    if message_text == supported_commands.supported_commands[0]:
+         conversion_type = -1
+         currencies_command(update, context)
+         return
+ 
+-    if message_text == "Гривня -> Валюта":
++    if message_text == supported_commands.supported_commands[1]:
+         conversion_type = 0
+         convert_hryvnia_command(update, context)
+         return
+ 
+-    if message_text == "Валюта -> Гривня":
++    if message_text == supported_commands.supported_commands[2]:
+         conversion_type = 1
+         convert_currency_command(update, context)
+         return
+Index: .idea/.gitignore
+===================================================================
+--- .idea/.gitignore	(revision 8e6eefe6dbac7f52143d30870682f99bde5bf552)
++++ .idea/.gitignore	(revision 8e6eefe6dbac7f52143d30870682f99bde5bf552)
+@@ -1,8 +0,0 @@
+-# Default ignored files
+-/shelf/
+-/workspace.xml
+-# Editor-based HTTP Client requests
+-/httpRequests/
+-# Datasource local storage ignored files
+-/dataSources/
+-/dataSources.local.xml
+Index: .idea/enrollment_test.iml
+===================================================================
+--- .idea/enrollment_test.iml	(revision 8e6eefe6dbac7f52143d30870682f99bde5bf552)
++++ .idea/enrollment_test.iml	(revision 8e6eefe6dbac7f52143d30870682f99bde5bf552)
+@@ -1,7 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<module version="4">
+-  <component name="NewModuleRootManager">
+-    <orderEntry type="jdk" jdkName="Python 3.9" jdkType="Python SDK" />
+-    <orderEntry type="sourceFolder" forTests="false" />
+-  </component>
+-</module>
+\ No newline at end of file
+Index: requirements.txt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- requirements.txt	(date 1638087985289)
++++ requirements.txt	(date 1638087985289)
+@@ -0,0 +1,14 @@
++requests~=2.25.0
++pytz~=2021.3
++beautifulsoup4~=4.9.3
++lxml~=4.6.2
++soupsieve~=2.0.1
++pip~=20.3.3
++tornado~=6.1
++certifi~=2020.11.8
++urllib3~=1.26.2
++six~=1.15.0
++idna~=2.10
++chardet~=3.0.4
++setuptools~=50.3.2
++future~=0.18.2
+\ No newline at end of file
+Index: src/data/available_keyboards.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>from telegram import KeyboardButton\r\n\r\nfrom data import supported_currencies\r\n\r\nkeyboards = [\r\n    [[KeyboardButton(\"Доступні валюти\")], [KeyboardButton(\"Гривня -> Валюта\")], [KeyboardButton(\"Валюта -> Гривня\")]],\r\n    [[KeyboardButton(name)] for name in supported_currencies.supported_currencies.keys()],\r\n]\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/data/available_keyboards.py	(revision 8e6eefe6dbac7f52143d30870682f99bde5bf552)
++++ src/data/available_keyboards.py	(date 1638088642572)
+@@ -1,8 +1,8 @@
+ from telegram import KeyboardButton
+ 
+-from data import supported_currencies
++from data import supported_currencies, supported_commands
+ 
+ keyboards = [
+-    [[KeyboardButton("Доступні валюти")], [KeyboardButton("Гривня -> Валюта")], [KeyboardButton("Валюта -> Гривня")]],
++    [[KeyboardButton(command)] for command in supported_commands.supported_commands],
+     [[KeyboardButton(name)] for name in supported_currencies.supported_currencies.keys()],
+ ]
+Index: .idea/misc.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<project version=\"4\">\r\n  <component name=\"ProjectRootManager\" version=\"2\" project-jdk-name=\"Python 3.9\" project-jdk-type=\"Python SDK\" />\r\n  <component name=\"PyPackaging\">\r\n    <option name=\"earlyReleasesAsUpgrades\" value=\"true\" />\r\n  </component>\r\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- .idea/misc.xml	(revision 8e6eefe6dbac7f52143d30870682f99bde5bf552)
++++ .idea/misc.xml	(date 1638087985430)
+@@ -1,7 +1,4 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ <project version="4">
+   <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.9" project-jdk-type="Python SDK" />
+-  <component name="PyPackaging">
+-    <option name="earlyReleasesAsUpgrades" value="true" />
+-  </component>
+ </project>
+\ No newline at end of file
+Index: src/data/supported_commands.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/data/supported_commands.py	(date 1638088642572)
++++ src/data/supported_commands.py	(date 1638088642572)
+@@ -0,0 +1,5 @@
++supported_commands = (
++    "Доступні валюти",
++    "Гривня -> Валюта",
++    "Валюта -> Гривня",
++)
+Index: src/main.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>from scraper import scraper\r\nfrom bot import bot\r\n\r\n# Press the green button in the gutter to run the script.\r\nif __name__ == '__main__':\r\n    bot.main()\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/main.py	(revision 8e6eefe6dbac7f52143d30870682f99bde5bf552)
++++ src/main.py	(date 1638088642572)
+@@ -1,6 +1,12 @@
+-from scraper import scraper
++# -----------------------------------------------------------
++# A simple currency exchange telegram bot
++# that uses data from the National Bank of Ukraine
++# website: https://bank.gov.ua/ua/markets/exchangerates
++#
++# (C) 2021 Artem Mykytyshyn, Kyiv, Ukraine
++# -----------------------------------------------------------
++
+ from bot import bot
+ 
+-# Press the green button in the gutter to run the script.
+ if __name__ == '__main__':
+     bot.main()
+Index: src/data/exchange_rates.txt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>27.11.2021\r\nAUD~1~19.4111\r\nBYN~1~10.6821\r\nBGN~1~15.5106\r\nUSD~1~27.0256\r\nEUR~1~30.3376\r\nPLN~1~6.4989\r\nCAD~1~21.3228\r\nGBP~1~35.9684\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/data/exchange_rates.txt	(revision 8e6eefe6dbac7f52143d30870682f99bde5bf552)
++++ src/data/exchange_rates.txt	(date 1638088785437)
+@@ -1,4 +1,4 @@
+-27.11.2021
++28.11.2021
+ AUD~1~19.4111
+ BYN~1~10.6821
+ BGN~1~15.5106
+Index: .idea/currency_telegram_bot.iml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<module type=\"PYTHON_MODULE\" version=\"4\">\r\n  <component name=\"NewModuleRootManager\">\r\n    <content url=\"file://$MODULE_DIR$/../currency_telegram_bot\">\r\n      <excludeFolder url=\"file://$MODULE_DIR$/../currency_telegram_bot/venv\" />\r\n    </content>\r\n    <orderEntry type=\"inheritedJdk\" />\r\n    <orderEntry type=\"sourceFolder\" forTests=\"false\" />\r\n  </component>\r\n</module>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- .idea/currency_telegram_bot.iml	(revision 8e6eefe6dbac7f52143d30870682f99bde5bf552)
++++ .idea/currency_telegram_bot.iml	(date 1638087985414)
+@@ -1,10 +1,14 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ <module type="PYTHON_MODULE" version="4">
+   <component name="NewModuleRootManager">
+-    <content url="file://$MODULE_DIR$/../currency_telegram_bot">
+-      <excludeFolder url="file://$MODULE_DIR$/../currency_telegram_bot/venv" />
++    <content url="file://$MODULE_DIR$">
++      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+     </content>
+-    <orderEntry type="inheritedJdk" />
++    <orderEntry type="jdk" jdkName="Python 3.9" jdkType="Python SDK" />
+     <orderEntry type="sourceFolder" forTests="false" />
+   </component>
++  <component name="PyDocumentationSettings">
++    <option name="format" value="GOOGLE" />
++    <option name="myDocStringFormat" value="Google" />
++  </component>
+ </module>
+\ No newline at end of file
+Index: .idea/modules.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<project version=\"4\">\r\n  <component name=\"ProjectModuleManager\">\r\n    <modules>\r\n      <module fileurl=\"file://$PROJECT_DIR$/.idea/enrollment_test.iml\" filepath=\"$PROJECT_DIR$/.idea/enrollment_test.iml\" />\r\n    </modules>\r\n  </component>\r\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- .idea/modules.xml	(revision 8e6eefe6dbac7f52143d30870682f99bde5bf552)
++++ .idea/modules.xml	(date 1638087844451)
+@@ -2,7 +2,7 @@
+ <project version="4">
+   <component name="ProjectModuleManager">
+     <modules>
+-      <module fileurl="file://$PROJECT_DIR$/.idea/enrollment_test.iml" filepath="$PROJECT_DIR$/.idea/enrollment_test.iml" />
++      <module fileurl="file://$PROJECT_DIR$/.idea/currency_telegram_bot.iml" filepath="$PROJECT_DIR$/.idea/currency_telegram_bot.iml" />
+     </modules>
+   </component>
+ </project>
+\ No newline at end of file

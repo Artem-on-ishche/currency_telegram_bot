@@ -1,6 +1,12 @@
-from scraper import scraper
+# -----------------------------------------------------------
+# A simple currency exchange telegram bot
+# that uses data from the National Bank of Ukraine
+# website: https://bank.gov.ua/ua/markets/exchangerates
+#
+# (C) 2021 Artem Mykytyshyn, Kyiv, Ukraine
+# -----------------------------------------------------------
+
 from bot import bot
 
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     bot.main()

@@ -1,9 +1,8 @@
-from telegram import *
 from telegram.ext import *
 
-from data import constants, supported_currencies, available_keyboards
-from scraper import scraper
 from bot import helper
+from data import constants, supported_currencies, supported_commands
+from scraper import scraper
 
 chosen_currency = None
 conversion_type = -1  # -1 for no conversion, 0 for uah-currency, 1 for currency-uah
@@ -69,17 +68,17 @@ def message_handler(update: Updater, context: CallbackContext):
     global chosen_currency, conversion_type
     message_text = update.message.text
 
-    if message_text == "Доступні валюти":
+    if message_text == supported_commands.supported_commands[0]:
         conversion_type = -1
         currencies_command(update, context)
         return
 
-    if message_text == "Гривня -> Валюта":
+    if message_text == supported_commands.supported_commands[1]:
         conversion_type = 0
         convert_hryvnia_command(update, context)
         return
 
-    if message_text == "Валюта -> Гривня":
+    if message_text == supported_commands.supported_commands[2]:
         conversion_type = 1
         convert_currency_command(update, context)
         return
